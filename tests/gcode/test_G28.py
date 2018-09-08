@@ -18,5 +18,4 @@ class G28_Tests(MockPrinter):
     self.printer.path_planner.home.assert_called_with(["Z"])
 
   def test_G28_is_buffered(self):
-    g = Gcode({"message": "G28"})
-    self.assertTrue(self.printer.processor.is_buffered(g))
+    self.assertTrue(self.printer.processor.gcodes["G28"].is_buffered())

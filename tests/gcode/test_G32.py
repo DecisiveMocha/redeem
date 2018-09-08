@@ -7,8 +7,7 @@ from redeem.Gcode import Gcode
 
 class G32_Tests(MockPrinter):
   def test_G32_is_buffered(self):
-    g = Gcode({"message": "G32"})
-    self.assertTrue(self.printer.processor.is_buffered(g))
+    self.assertTrue(self.printer.processor.gcodes["G32"].is_buffered())
 
   @mock.patch("redeem.gcodes.G32.Gcode")
   def test_G32_runs_macro(self, mock_Gcode):

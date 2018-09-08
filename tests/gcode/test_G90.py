@@ -7,8 +7,7 @@ from redeem.Gcode import Gcode
 
 class G90_Tests(MockPrinter):
   def test_G90_is_buffered(self):
-    g = Gcode({"message": "G90"})
-    self.assertTrue(self.printer.processor.is_buffered(g))
+    self.assertTrue(self.printer.processor.gcodes["G90"].is_buffered())
 
   def test_gcodes_G90_from_absolute(self):
     self.printer.axes_absolute = ["X", "Y", "Z", "E", "H", "A", "B", "C"]
