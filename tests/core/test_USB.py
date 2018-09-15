@@ -1,7 +1,7 @@
 # Work in progres - ARC
 import unittest
 import mock    # use mock.Mock etc
-from USB import USB
+from redeem.USB import USB
 
 
 class TestUSB(unittest.TestCase):
