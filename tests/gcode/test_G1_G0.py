@@ -19,7 +19,8 @@ class G1_G0_Tests(MockPrinter):
         "Y": 0.010 * self.f,
         "E": 0.0031 * self.f
     }, 3000.0 / 60000 * self.f, 3000.0 * self.f / 3600000)
-    self.printer.path_planner.add_path.called_with(expected_path)
+    self.printer.path_planner.add_path.assert_called_with(expected_path)
+
     """ test that we maintain current printer feed rate and accel, when not specified """
     self.printer.feed_rate = 0.100
     self.printer.accel = 0.025 / 60
@@ -28,17 +29,19 @@ class G1_G0_Tests(MockPrinter):
         "X": 0.020 * self.f,
         "Y": 0.020 * self.f
     }, self.printer.feed_rate, self.printer.accel)
-    self.printer.path_planner.add_path.called_with(expected_path)
+    self.printer.path_planner.add_path.assert_called_with(expected_path)
 
   def test_gcodes_G1_G0_relative(self):
     self.printer.movement = Path.RELATIVE
+
+    self.execute_gcode("G1 X10 Y10 E10")
 
     expected_path = RelativePath({
         "X": 0.010 * self.f,
         "Y": 0.010 * self.f,
         "E": 0.010 * self.f
     }, self.printer.feed_rate, self.printer.accel)
-    self.printer.path_planner.add_path.called_with(expected_path)
+    self.printer.path_planner.add_path.assert_called_with(expected_path)
 
   def test_gcodes_G1_G0_mixed(self):
     self.printer.movement = Path.MIXED
@@ -49,7 +52,7 @@ class G1_G0_Tests(MockPrinter):
         "Y": 0.010 * self.f,
         "E": 0.010 * self.f
     }, self.printer.feed_rate, self.printer.accel)
-    self.printer.path_planner.add_path.called_with(expected_path)
+    self.printer.path_planner.add_path.assert_called_with(expected_path)
 
   def test_gcodes_G1_G0_syntax(self):
     g = self.execute_gcode("G1X1Y2.3 z-0.456E+7.89ab c")

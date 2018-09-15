@@ -70,6 +70,33 @@ class Path:
     self.start_pos = None
     self.end_pos = None
     self.ideal_end_pos = None
+    self.movement = None
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and \
+      self.axes == other.axes and \
+      self.speed == other.speed and \
+      self.accel == other.accel and \
+      self.cancelable == other.cancelable and \
+      self.use_bed_matrix == other.use_bed_matrix and \
+      self.use_backlash_compensation == other.use_backlash_compensation and \
+      self.enable_soft_endstops == other.enable_soft_endstops and \
+      self.is_probe == other.is_probe and \
+      self.next == other.next and \
+      self.prev == other.prev and \
+      self.speeds == other.speeds and \
+      self.start_pos == other.start_pos and \
+      self.end_pos == other.end_pos and \
+      self.ideal_end_pos == other.ideal_end_pos and \
+      self.movement == other.movement
+
+  def __repr__(self):
+    return "Path(axes:%s, speed:%s, accel:%s, cancelable:%s, use_bed_matrix:%s, " \
+      "use_backlash_compenstation:%s, enable_soft_endstops:%s, is_probe:%s, next:%s, prev:%s, " \
+      "speeds:%s, start_pos:%s, end_pos:%s, ideal_end_pos:%s, movement:%s)" \
+      % (self.axes, self.speed, self.accel, self.cancelable, self.use_bed_matrix,
+      self.use_backlash_compensation, self.enable_soft_endstops, self.is_probe, self.next,
+      self.prev, self.speeds, self.start_pos, self.end_pos, self.ideal_end_pos, self.movement)
 
   def is_G92(self):
     """ Special path, only set the global position on this """
