@@ -64,12 +64,6 @@ class Path:
     self.use_backlash_compensation = int(use_backlash_compensation)
     self.enable_soft_endstops = enable_soft_endstops
     self.is_probe = is_probe
-    self.next = None
-    self.prev = None
-    self.speeds = None
-    self.start_pos = None
-    self.end_pos = None
-    self.ideal_end_pos = None
     self.movement = None
 
   def __eq__(self, other):
@@ -82,49 +76,28 @@ class Path:
       self.use_backlash_compensation == other.use_backlash_compensation and \
       self.enable_soft_endstops == other.enable_soft_endstops and \
       self.is_probe == other.is_probe and \
-      self.next == other.next and \
-      self.prev == other.prev and \
-      self.speeds == other.speeds and \
-      self.start_pos == other.start_pos and \
-      self.end_pos == other.end_pos and \
-      self.ideal_end_pos == other.ideal_end_pos and \
       self.movement == other.movement
 
   def __repr__(self):
     return "Path(axes:%s, speed:%s, accel:%s, cancelable:%s, use_bed_matrix:%s, " \
-      "use_backlash_compenstation:%s, enable_soft_endstops:%s, is_probe:%s, next:%s, prev:%s, " \
-      "speeds:%s, start_pos:%s, end_pos:%s, ideal_end_pos:%s, movement:%s)" \
+      "use_backlash_compenstation:%s, enable_soft_endstops:%s, is_probe:%s, " \
+      "movement:%s)" \
       % (self.axes, self.speed, self.accel, self.cancelable, self.use_bed_matrix,
-      self.use_backlash_compensation, self.enable_soft_endstops, self.is_probe, self.next,
-      self.prev, self.speeds, self.start_pos, self.end_pos, self.ideal_end_pos, self.movement)
+      self.use_backlash_compensation, self.enable_soft_endstops, self.is_probe,
+      self.movement)
 
   def is_G92(self):
     """ Special path, only set the global position on this """
     return self.movement == Path.G92
 
-  def set_homing_feedrate(self):
-    """ The feed rate is set to the lowest axis in the set """
-    self.speeds = np.minimum(self.speeds, self.home_speed[np.argmax(self.vec)])
-    self.speed = np.linalg.norm(self.speeds[:3])
-
-  def unlink(self):
-    """ unlink this from the chain. """
-    self.next = None
-    self.prev = None
-
-  @staticmethod
-  def backlash_reset():
-    #TODO: This needs further attention
-    return
-
   def needs_splitting(self):
     """ Return true if this is a arc movement"""
     return self.movement == Path.G2 or self.movement == Path.G3
 
-  def get_segments(self):
+  def get_segments(self, ideal_start_pos):
     """ Returns split segments for delta or arcs """
     if self.movement == Path.G2 or self.movement == Path.G3:
-      return self.get_arc_segments()
+      return self.get_arc_segments(ideal_start_pos)
 
   def _get_point_on_plane(self, point):
     """ Returns the two dimensions that are relevant for the active arc plane """
@@ -185,14 +158,25 @@ class Path:
     return intersection[1].x, intersection[1].y    # "negative" radius center point
 
   # If performance is an issue, move functionality to `PathPlannerNative`
-  def get_arc_segments(self):
+  def get_arc_segments(self, ideal_start_pos):
     """Returns paths that approximate an arc"""
     #  reference : http://www.manufacturinget.org/2011/12/cnc-g-code-g02-and-g03/
 
+    # first calculate the end position
+    ideal_end_pos = np.array(ideal_start_pos, copy=True, dtype=Path.DTYPE)
+    axes_list = self.get_axes_moving_absolutely()
+    mixed_end_pos = self.get_mixed_end_position()
+
+    for index, axis in enumerate(self.printer.AXES):
+      if axis in axes_list:
+        ideal_end_pos[index] = mixed_end_pos[index]
+      else:
+        ideal_end_pos[index] += mixed_end_pos[index]
+
     # isolate dimensions relevant for the active plane (eg X,Y for XY plane)
-    start0, start1 = self._get_point_on_plane(self.prev.ideal_end_pos)
-    end0, end1 = self._get_point_on_plane(self.ideal_end_pos)
-    logging.debug("end pos: {}".format(self.ideal_end_pos))
+    start0, start1 = self._get_point_on_plane(ideal_start_pos)
+    end0, end1 = self._get_point_on_plane(ideal_end_pos)
+    logging.debug("end pos: {}".format(ideal_end_pos))
     logging.debug("start point: {}, end point: {}".format([start0, start1], [end0, end1]))
 
     # 'R' variant gives radius, need to calculate circle center
@@ -236,8 +220,8 @@ class Path:
     arc_1 = circle1 + radius * np.sin(arc_thetas)
 
     # handle non-arc (linear) dimensional movements
-    start_linears = self._get_linear_dimensions(self.prev.ideal_end_pos)
-    end_linears = self._get_linear_dimensions(self.ideal_end_pos)
+    start_linears = self._get_linear_dimensions(ideal_start_pos)
+    end_linears = self._get_linear_dimensions(ideal_end_pos)
 
     things_to_zip = [arc_0, arc_1]
 
@@ -263,10 +247,6 @@ class Path:
                           False)
       # in order to set previous, printer attribute needs to be set based on the original path's printer
       path.printer = self.printer
-      if index is not 0:
-        path.set_prev(path_segments[-1])
-      else:
-        path.set_prev(self.prev)
 
       path_segments.append(path)
 
@@ -276,6 +256,14 @@ class Path:
     """ The vector representation of this path segment """
     return "Path from " + str(self.start_pos[:4]) + " to " + str(self.end_pos[:4])
 
+  def get_mixed_end_position(self):
+    end_pos = np.zeros(self.printer.MAX_AXES)
+
+    for index, axis in enumerate(self.printer.AXES):
+      if axis in self.axes:
+        end_pos[index] = self.axes[axis]
+
+    return end_pos
 
 class AbsolutePath(Path):
   """ A path segment with absolute movement """
@@ -293,25 +281,8 @@ class AbsolutePath(Path):
                   enable_soft_endstops, is_probe)
     self.movement = Path.ABSOLUTE
 
-  def set_prev(self, prev):
-    """ Set the previous path element """
-    self.prev = prev
-    prev.next = self
-    self.start_pos = prev.end_pos
-
-    # Make the start, end and path vectors.
-    self.ideal_end_pos = np.copy(prev.ideal_end_pos)
-    for index, axis in enumerate(self.printer.AXES):
-      if axis in self.axes:
-        self.ideal_end_pos[index] = self.axes[axis]
-
-    # Store the ideal end pos, so the target
-    # coordinates are pushed forward
-    self.end_pos = np.copy(self.ideal_end_pos)
-    if self.use_bed_matrix:
-      self.end_pos[:3] = self.end_pos[:3].dot(self.printer.matrix_bed_comp)
-
-    #logging.debug("Abs before: "+str(self.ideal_end_pos[:3])+" after: "+str(self.end_pos[:3]))
+  def get_axes_moving_absolutely(self):
+    return self.axes.viewkeys()
 
 
 class RelativePath(Path):
@@ -335,25 +306,8 @@ class RelativePath(Path):
                   enable_soft_endstops, is_probe)
     self.movement = Path.RELATIVE
 
-  def set_prev(self, prev):
-    """ Link to previous segment """
-    self.prev = prev
-    prev.next = self
-    self.start_pos = prev.end_pos
-
-    # Generate the vector
-    vec = np.zeros(self.printer.MAX_AXES, dtype=Path.DTYPE)
-    for index, axis in enumerate(self.printer.AXES):
-      if axis in self.axes:
-        vec[index] = self.axes[axis]
-
-    # Calculate the ideal end position.
-    # In an ideal world, this is where we want to go.
-    self.ideal_end_pos = np.copy(prev.ideal_end_pos) + vec
-
-    self.end_pos = np.copy(self.ideal_end_pos)
-    if self.use_bed_matrix:
-      self.end_pos[:3] = self.end_pos[:3].dot(self.printer.matrix_bed_comp)
+  def get_axes_moving_absolutely(self):
+    return {}
 
 
 class MixedPath(Path):
@@ -372,27 +326,6 @@ class MixedPath(Path):
                   enable_soft_endstops, is_probe)
     self.movement = Path.MIXED
 
-  def set_prev(self, prev):
-    """ Set the previous path element """
-    self.prev = prev
-    prev.next = self
-    self.start_pos = prev.end_pos
-
-    # Make the start, end and path vectors.
-    self.ideal_end_pos = np.copy(prev.ideal_end_pos)
-    for axis in self.axes:
-      index = self.printer.axis_to_index(axis)
-      if (axis in self.printer.axes_relative):
-        self.ideal_end_pos[index] += self.axes[axis]
-      elif (axis in self.printer.axes_absolute):
-        self.ideal_end_pos[index] = self.axes[axis]
-
-    # Store the ideal end pos, so the target
-    # coordinates are pushed forward
-    self.end_pos = np.copy(self.ideal_end_pos)
-    if self.use_bed_matrix:
-      self.end_pos[:3] = self.end_pos[:3].dot(self.printer.matrix_bed_comp)
-
 
 class G92Path(Path):
   """ A reset axes path segment. No movement occurs, only global position
@@ -402,30 +335,6 @@ class G92Path(Path):
     Path.__init__(self, axes, 0, 0, cancelable, use_bed_matrix)
     self.movement = Path.G92
 
-  def set_prev(self, prev):
-    """ Set the previous segment """
-    self.prev = prev
-    if prev is not None:
-      self.start_pos = prev.end_pos
-      self.end_pos = np.copy(self.start_pos)
-      self.ideal_end_pos = np.copy(prev.ideal_end_pos)
-      prev.next = self
-    else:
-      self.start_pos = np.zeros(self.printer.MAX_AXES, dtype=Path.DTYPE)
-      self.end_pos = np.zeros(self.printer.MAX_AXES, dtype=Path.DTYPE)
-      self.ideal_end_pos = np.zeros(self.printer.MAX_AXES, dtype=Path.DTYPE)
+  def get_axes_moving_absolutely(self):
+    return self.axes.viewkeys()
 
-    # Update the ideal pos based on G92 values
-    for index, axis in enumerate(self.printer.AXES):
-      if axis in self.axes:
-        self.ideal_end_pos[index] = self.axes[axis]
-        self.end_pos[index] = self.axes[axis]
-
-    # Update the matrix compensated pos
-    if self.use_bed_matrix:
-      matrix_pos = np.copy(self.ideal_end_pos)
-      matrix_pos[:3] = matrix_pos[:3].dot(self.printer.matrix_bed_comp)
-      for index, axis in enumerate(self.printer.AXES):
-        if axis in self.axes:
-          self.end_pos[index] = matrix_pos[index]
-    #logging.debug("G92 before: "+str(self.ideal_end_pos[:3])+" after: "+str(self.end_pos[:3]))

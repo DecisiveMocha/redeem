@@ -108,17 +108,6 @@ class PathPlanner:
         "C": 0.0
     }
     self.home_pos = {"X": 0.0, "Y": 0.0, "Z": 0.0, "E": 0.0, "H": 0.0, "A": 0.0, "B": 0.0, "C": 0.0}
-    self.prev = G92Path({
-        "X": 0.0,
-        "Y": 0.0,
-        "Z": 0.0,
-        "E": 0.0,
-        "H": 0.0,
-        "A": 0.0,
-        "B": 0.0,
-        "C": 0.0
-    }, 0)
-    self.prev.set_prev(None)
 
     if pru_firmware:
       self._init_path_planner()
@@ -153,7 +142,6 @@ class PathPlanner:
     self.native_planner.delta_bot.setAngularError(Delta.A_angular, Delta.B_angular, Delta.C_angular)
     self.configure_slaves()
     self.native_planner.setBacklashCompensation(tuple(self.printer.backlash_compensation))
-    self.native_planner.setState(self.prev.end_pos)
     self.printer.plugins.path_planner_initialized(self)
     self.native_planner.runThread()
 
@@ -187,8 +175,7 @@ class PathPlanner:
     else:
       scale = 1.0
     state = self.native_planner.getState()
-    if ideal:
-      state = self.prev.ideal_end_pos
+    #TODO get ideal state from path planner
     pos = {}
     for index, axis in enumerate(Printer.AXES[:Printer.MAX_AXES]):
       pos[axis] = state[index] * scale
@@ -417,7 +404,6 @@ class PathPlanner:
 
     # save the starting position
     start_pos = self.get_current_pos(ideal=True)
-    start_state = self.native_planner.getState()
 
     # calculate how many steps the requested z movement will require
     steps = np.ceil(z * self.printer.steps_pr_meter[2])
@@ -483,15 +469,13 @@ class PathPlanner:
 
   def add_path(self, new):
     """ Add a path segment to the path planner """
-    """ This code, and the native planner, needs to be updated for reach. """
-    # Link to the previous segment in the chain
-    new.set_prev(self.prev)
 
     # NOTE: printing the added path slows things down SIGNIFICANTLY
     #logging.debug("path added: "+ str(new))
 
     # Add babystepping
-    new.end_pos[2] += self.printer.offset_z
+    #TODO broken
+    #new.end_pos[2] += self.printer.offset_z
 
     if new.is_G92():
       self.native_planner.setAxisConfig(int(self.printer.axis_config))
@@ -500,39 +484,33 @@ class PathPlanner:
       # G2 or G3 movements (arc movements ) need to convert it to linear segments before feeding to the queue
       # These movements seem only to be used by CNC mills/lathes which have lower gcode throughput
       # Performance may be acceptable. If it is an issue, move `Path` functionality into `PathPlannerNative`
-      for seg in new.get_segments():
+      for seg in new.get_segments(self.native_planner.getState()): # TODO this should be an ideal state
         self.add_path(seg)
 
     else:
       self.printer.ensure_steppers_enabled()
 
-      optimize = new.movement != Path.RELATIVE
-      tool_axis = Printer.axis_to_index(self.printer.current_tool)
+      axes_list = new.get_axes_moving_absolutely()
+      end_pos = new.get_mixed_end_position()
+
+      axes_mask = 0
+
+      for index, axis in enumerate(self.printer.AXES):
+        if axis in axes_list:
+          axes_mask |= (1 << index)
 
       self.native_planner.setAxisConfig(int(self.printer.axis_config))
 
       self.native_planner.queueMove(
-          tuple(new.end_pos),
+          tuple(end_pos),
           new.speed,
           new.accel,
-          bool(new.cancelable),
-          bool(optimize),
-          bool(new.enable_soft_endstops),
-          False,    #bool(new.use_bed_matrix),
-          bool(new.use_backlash_compensation),
-          bool(new.is_probe),
-          int(tool_axis))
+          axes_mask)
 
     err = self.native_planner.getLastQueueMoveStatus()
 
     if err:
       logging.debug("add path failed: " + str(new))
-    else:
-      self.prev = new
-      self.prev.unlink()    # We don't want to store the entire print
-      # in memory, so we keep only the last path.
-      # make sure that the current state of the printer is correct
-      self.prev.end_pos = self.native_planner.getState()
 
   def set_extruder(self, ext_nr):
     """
