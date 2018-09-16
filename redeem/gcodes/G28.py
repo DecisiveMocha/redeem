@@ -35,7 +35,6 @@ class G28(GCodeCommand):
       self.printer.path_planner.wait_until_done()
       self.printer.path_planner.home(axis_home)
       if g.has_letter("M"):
-        #matrix = self.printer.path_planner.prev.end_pos[:3].dot(self.printer.matrix_bed_comp)
         current = self.printer.path_planner.get_current_pos(mm=False, ideal=True)
         p = G92Path({"Z": current["Z"]}, cancelable=False, use_bed_matrix=True)
         self.printer.path_planner.add_path(p)

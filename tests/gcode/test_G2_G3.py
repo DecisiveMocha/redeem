@@ -45,6 +45,11 @@ class G2G3CircleTests(MockPrinter):
     xy_chart.add('center', [(center['X'], center['Y'])])
     xy_chart.render_to_file('{}.svg'.format(title))
 
+  def _set_start_state(self, start):
+    start = np.array(start, copy=True, dtype=np.float64)
+    start /= 1000.0
+    self.printer.path_planner.native_planner.getState = Mock(return_value=start)
+
   def _build_start_code(self, start):
     gcode = 'G1'
     for axis, val in start.items():
@@ -71,6 +76,10 @@ class G2G3CircleTests(MockPrinter):
         self._build_start_code(start),
         self._build_curve_code(finish, offset, direction)
     ]
+
+    self._set_start_state((start.get("X", 0), start.get("Y", 0), start.get("Z", 0),
+      start.get("E", 0), start.get("H", 0), start.get("A", 0), start.get("B", 0),
+      start.get("C", 0)))
 
     logging.debug("gcodes: {}".format(gcodes))
 
@@ -262,7 +271,6 @@ class G2G3CircleTests(MockPrinter):
   # def test_neg_radius_variant_cw
   # def test_neg_radius_variant_ccw
 
-
 class G2G3ExtrusionTests(MockPrinter):
   @classmethod
   def setUpPatch(cls):
@@ -305,37 +313,43 @@ class G2G3ExtrusionTests(MockPrinter):
 
     queue_mock.reset_mock()
 
-  def test_linear_e_extrusion(self):
+  def _set_start_state(self, start):
+    start = np.array(start, copy=True, dtype=np.float64)
+    start /= 1000.0
+    self.printer.path_planner.native_planner.getState = Mock(return_value=start)
 
+  def test_linear_e_extrusion(self):
+    self._set_start_state((7, -2, 0, 2, 0, 0, 0, 0))
     gcodes = ['G17', 'G1 Y-2.0 X7.0 E2.0', 'G3 Y-6.0 X-7.0 I-9.0 J5.0 E3.5']
     self._test_linear_dimensions(gcodes, 'E', 2.0 / 1000, 3.5 / 1000)
 
   def test_z_helical(self):
-
+    self._set_start_state((7, -2, 2, 0, 0, 0, 0, 0))
     gcodes = ['G17', 'G1 Y-2.0 X7.0 Z2.0', 'G3 Y-6.0 X-7.0 I-9.0 J5.0 Z3.5']
     self._test_linear_dimensions(gcodes, 'Z', 2.0 / 1000, 3.5 / 1000)
 
   def test_neg_z_helical(self):
-
+    self._set_start_state((7, -2, -2, 0, 0, 0, 0, 0))
     gcodes = ['G17', 'G1 Y-2.0 X7.0 Z-2.0', 'G3 Y-6.0 X-7.0 I-9.0 J5.0 Z-3.5']
     self._test_linear_dimensions(gcodes, 'Z', -2.0 / 1000, -3.5 / 1000)
 
   def test_z_helical_cross_zero_up(self):
-
+    self._set_start_state((7, -2, -15.1, 0, 0, 0, 0, 0))
     gcodes = ['G17', 'G1 Y-2.0 X7.0 Z-15.1', 'G3 Y-6.0 X-7.0 I-9.0 J5.0 Z3.5']
     self._test_linear_dimensions(gcodes, 'Z', -15.1 / 1000, 3.5 / 1000)
 
   def test_z_helical_cross_zero_down(self):
-
+    self._set_start_state((7, -2, 2, 0, 0, 0, 0, 0))
     gcodes = ['G17', 'G1 Y-2.0 X7.0 Z2.0', 'G3 Y-6.0 X-7.0 I-9.0 J5.0 Z-13.5']
     self._test_linear_dimensions(gcodes, 'Z', 2.0 / 1000, -13.5 / 1000)
 
   def test_helical_and_extrusion(self):
-
+    self._set_start_state((7, -2, 2, 1.25, 0, 0, 0, 0))
     gcodes = ['G17', 'G1 Y-2.0 X7.0 Z2.0 E1.25', 'G3 Y-6.0 X-7.0 I-9.0 J5.0 Z-13.5 E2.55']
     self._test_linear_dimensions(gcodes, 'Z', 2.0 / 1000, -13.5 / 1000)
     self._test_linear_dimensions(gcodes, 'E', 1.25 / 1000, 2.55 / 1000)
 
   def test_linear_h_extrusion(self):
+    self._set_start_state((7, -2, 0, 0, 2, 0, 0, 0))
     gcodes = ['G17', 'G1 Y-2.0 X7.0 H2.0', 'G3 Y-6.0 X-7.0 I-9.0 J5.0 H3.5']
     self._test_linear_dimensions(gcodes, 'H', 2.0 / 1000, 3.5 / 1000)

@@ -147,11 +147,8 @@ class PathPlanner {
   void queueSyncEvent(SyncCallback& callback, bool isBlocking = true);
   %newobject queueWaitEvent;
   WaitEvent* queueWaitEvent();
-  void queueMove(VectorN endPos,
-		 double speed, double accel,
-		 bool cancelable, bool optimize,
-		 bool enable_soft_endstops, bool use_bed_matrix,
-		 bool use_backlash_compensation, bool is_probe, int tool_axis);
+  void queueMove(VectorN endPos, double speed, double accel, uint8_t absoluteAxesMask);
+  void queueProbeMove(VectorN endPos, double speed, double accel, uint8_t absoluteAxesMask, uint8_t options);
   void runThread();
   void stopThread(bool join);
   void waitUntilFinished();
