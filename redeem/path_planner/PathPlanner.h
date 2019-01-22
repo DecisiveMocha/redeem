@@ -75,6 +75,8 @@ private:
     VectorN maxSpeeds;
     VectorN maxAccelerationStepsPerSquareSecond;
     VectorN maxAccelerationMPerSquareSecond;
+    VectorN maxSpeedJumps;
+    VectorN pressureAdvanceFactors;
 
     double minimumSpeed;
     VectorN axisStepsPerM;
@@ -221,6 +223,15 @@ public:
    * @param rates The feedrate for each of the axis, consisting of a NUM_AXES length array.
    */
     void setMaxSpeeds(VectorN speeds);
+
+    /**
+   * @brief Set the pressure advance factor for each axis. Note that the factors for X, Y, and Z are ignored.
+   * @details The pressure advance factor is the spring factor for a ficticious spring that sits between the extruder
+   * and the nozzle. It must be compressed some amount for the flow of plastic to reach a certain speed.
+   *
+   * @param pressureAdvanceFactor the pressure advance factors for each axis
+   */
+    void setPressureAdvanceFactors(VectorN pressureAdvanceFactors);
 
     /**
    * @brief Set the number of steps required to move each axis by 1 meter

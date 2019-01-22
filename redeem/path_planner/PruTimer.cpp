@@ -619,7 +619,7 @@ void PruTimer::run()
         if (!nbCommand || stop || !*nbCommand)
             continue;
         SteppersCommand* cmd = (SteppersCommand*)(currentReadingAddress + 4);
-        FLOAT_T totalWait = 0;
+        double totalWait = 0;
         for (int i = 0; i < (int)*nbCommand; i++)
         {
             totalWait += cmd->delay / 200000.0;

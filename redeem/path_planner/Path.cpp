@@ -64,12 +64,182 @@ void calculateXYMove(const IntVector3& start, const IntVector3& end, const Vecto
     }
 }
 
-void calculateExtruderMove(const IntVectorN& start, const IntVectorN& end, double time, std::array<std::vector<Step>, NUM_AXES>& steps)
+void calculateExtruderMove(const IntVectorN& start, const IntVectorN& end, double time, bool pressureAdvanceEnabled, const VectorN& pressureAdvanceFactors, std::array<std::vector<Step>, NUM_AXES>& steps)
 {
     for (int i = NUM_MOVING_AXES; i < NUM_AXES; i++)
     {
+        if (pressureAdvanceEnabled && pressureAdvanceFactors[i] != 0)
+        {
+            continue;
+        }
+
         calculateLinearMove(i, start[i], end[i], time, steps[i]);
     }
+}
+
+/*
+ * Calculate a move with a pressure advance factor. Note that all distances must be in steps.
+ */
+void calculatePressureAdvancedExtruderMove(const int axis, const long long endStep,
+    const double startSpeed, const double cruiseSpeed, const double endSpeed,
+    const double accel, const double pressureAdvanceFactor, const double time,
+    std::vector<Step>& steps)
+{
+    const double& Vi = startSpeed;
+    const double& Vc = cruiseSpeed;
+    const double& Vf = endSpeed;
+    const double& A = accel;
+    const double& P = pressureAdvanceFactor;
+    const double D = endStep;
+
+    const double Vi2 = Vi * Vi;
+    const double Vc2 = Vc * Vc;
+    const double Vf2 = Vf * Vf;
+    const double A2 = A * A;
+    const double P2 = P * P;
+
+    /*
+	Pressure advance makes a move trapezoid that starts like this:
+	   cruise
+	   ______
+	  /      \
+	 /<accel  \<decel
+	/          \
+
+	look like this:
+	     cruise
+	  /______
+	 /<accel 
+	/         \
+	           \<decel
+			    \
+
+    This adds a few interesting characteristics:
+	- the accel phase starts and ends faster, so it will cover more steps in the same time
+	- the decel phase starts and ends slower, so it will cover fewer steps in the same time
+	- if there's enough decel and enough pressure advance, the decel phase may have a "turnaround" where it actually starts retracting
+	*/
+
+    // turnaround refers to the time when the decel phase actually reverses direction
+    const double turnaroundTime = (Vi2 - 2 * Vc * Vi + Vf2 + 2 * Vc2 - 2 * A * P * Vc + 2 * A * D) / (2 * A * Vc);
+    const double turnaroundStep = -(2 * A * P * Vi - Vf2 - A2 * P2 - 2 * A * D) / (2 * A);
+
+    const double accelEndStep = -(Vi2 + 2 * A * P * Vi - Vc2 - 2 * A * P * Vc) / (2 * A);
+    const double cruiseEndStep = -(2 * A * P * Vi - Vf2 + Vc2 - 2 * A * P * Vc - 2 * A * D) / (2 * A);
+    const double cruiseEndTime = (Vi2 - 2 * Vc * Vi + Vf2 + 2 * A * D) / (2 * A * Vc);
+    const double moveEndStep = -P * Vi + P * Vf + D;
+
+    const long long realEndStep = turnaroundTime < time ? turnaroundStep : endStep;
+    const long long delta = realEndStep > 0 ? 1 : -1;
+    const double stepDelta = delta * 0.5;
+
+    assert(A > 0);
+    assert(!std::isnan(A));
+    assert(Vc > 0);
+    assert(!std::isnan(Vc));
+    assert(!std::isnan(turnaroundTime));
+    assert(!std::isnan(turnaroundStep));
+    assert(!std::isnan(accelEndStep));
+    assert(!std::isnan(cruiseEndStep));
+    assert(accelEndStep >= 0 || std::abs(accelEndStep) < NEGLIGIBLE_ERROR);
+    assert(cruiseEndStep >= 0 || std::abs(cruiseEndStep) < NEGLIGIBLE_ERROR);
+
+    /*
+    There are a couple interesting cases here:
+    - In the "normal" case, cruiseEndTime < turnaroundTime < time, and we decelerate, stop, and retract a bit
+      - the forward move should run until turnaroundStep
+      - the backward move should run until moveEndStep
+    - In the "shortened" case, cruiseEndTime <= time <= turnaroundTime, and we decelerate but don't turnaround and retract
+      - the forward move should run until moveEndStep
+      - there will be no backward move
+    - In the "abrupt" case, turnaroundTime <= cruiseEndTime < time, and at the end of cruise we immediately turnaround and retract
+      - the forward move should run until cruiseEndStep
+      - the backward move should run until moveEndStep
+    */
+
+    const double forwardMoveEndStep = (cruiseEndTime < turnaroundTime && turnaroundTime < time)
+        ? turnaroundStep
+        : (cruiseEndTime <= time && time <= turnaroundTime)
+            ? moveEndStep
+            : (turnaroundTime <= cruiseEndTime)
+                ? cruiseEndStep
+                : std::numeric_limits<double>::quiet_NaN();
+
+    assert(!std::isnan(forwardMoveEndStep));
+    assert(forwardMoveEndStep >= 0 || std::abs(forwardMoveEndStep) < NEGLIGIBLE_ERROR);
+
+    for (long long step = 0; step < std::llround(forwardMoveEndStep); step += delta)
+    {
+        const double position = step + stepDelta;
+        double stepTime = 0;
+
+        if (position < accelEndStep) // acceleration phase
+        {
+            stepTime = (sqrt(2 * A * position + Vi2 + 2 * A * P * Vi + A2 * P2) - Vi - A * P) / A;
+        }
+        else if (position < cruiseEndStep) // cruise phase
+        {
+            stepTime = (2 * A * position + Vi2 + (2 * A * P - 2 * Vc) * Vi + Vc2 - 2 * A * P * Vc) / (2 * A * Vc);
+        }
+        else if (cruiseEndTime < turnaroundTime) // only decelerate if we're in the "normal" case or the "shortened" case
+        {
+            stepTime = -(2 * Vc * sqrt(-2 * A * position - 2 * A * P * Vi + Vf2 + A2 * P2 + 2 * A * D) - Vi2 + 2 * Vc * Vi - Vf2 - 2 * Vc2 + 2 * A * P * Vc - 2 * A * D) / (2 * A * Vc);
+        }
+
+        assert(!std::isnan(stepTime) && stepTime > 0 && stepTime < time);
+        assert(steps.empty() || stepTime > steps.back().time);
+
+        steps.emplace_back(Step(stepTime, axis, delta == 1));
+    }
+
+    if (turnaroundTime < time) // only retract in the "normal" and "abrupt" cases
+    {
+        // the velocity had a zero-crossing where the extruder started retracting - calculate these steps as well
+        for (long long step = std::llround(forwardMoveEndStep); step > std::llround(moveEndStep); step -= delta)
+        {
+            const double position = step - stepDelta;
+            const double stepTime = (2 * Vc * sqrt(-2 * A * position - 2 * A * P * Vi + Vf2 + A2 * P2 + 2 * A * D) + Vi2 - 2 * Vc * Vi + Vf2 + 2 * Vc2 - 2 * A * P * Vc + 2 * A * D) / (2 * A * Vc);
+
+            assert(!std::isnan(stepTime) && stepTime > 0 && stepTime < time);
+            assert(steps.empty() || stepTime >= steps.back().time);
+
+            // If our forward deceleration move ended at a position ending in 0.5,  the math can work out that we need to take a forward and backward step at the same time
+            // resolve this by removing both
+            if (stepTime == steps.back().time)
+            {
+                assert(std::abs(std::abs(forwardMoveEndStep - std::llround(forwardMoveEndStep)) - 0.5) < NEGLIGIBLE_ERROR);
+                steps.pop_back();
+                continue;
+            }
+
+            steps.emplace_back(Step(stepTime, axis, delta != 1));
+        }
+    }
+}
+
+VectorN calculateMaxAccelDueToPressureAdvance(const VectorN& pressureAdvanceFactors, const VectorN& maxAccels,
+    const VectorN& maxSpeedJumps)
+{
+    VectorN result;
+
+    for (int axis = 0; axis < NUM_AXES; axis++)
+    {
+        result[axis] = maxAccels[axis];
+
+        if (pressureAdvanceFactors[axis] == 0)
+        {
+            continue;
+        }
+
+        double speedJump = maxAccels[axis] * pressureAdvanceFactors[axis];
+
+        if (speedJump > maxSpeedJumps[axis])
+        {
+            result[axis] = maxSpeedJumps[axis] / pressureAdvanceFactors[axis];
+        }
+    }
+
+    return result;
 }
 
 void Path::zero()
@@ -89,6 +259,9 @@ void Path::zero()
     endSpeed = 0;
     accel = 0;
     startMachinePos.zero();
+    machineMove.zero();
+    baseSpeeds.zero();
+    pressureAdvanceFactors.zero();
 
     stepperPath.zero();
 
@@ -131,6 +304,9 @@ Path& Path::operator=(Path&& path)
     endSpeed = path.endSpeed;
     accel = path.accel;
     startMachinePos = path.startMachinePos;
+    machineMove = path.machineMove;
+    baseSpeeds = path.baseSpeeds;
+    pressureAdvanceFactors = path.pressureAdvanceFactors;
 
     stepperPath = path.stepperPath;
     steps = std::move(path.steps);
@@ -142,7 +318,13 @@ Path& Path::operator=(Path&& path)
     return *this;
 }
 
-inline static double calculateMaximumSpeedInternal(const VectorN& worldMove, const VectorN& maxSpeeds, const double distance)
+enum class CalculatedValue
+{
+    Speed,
+    Acceleration
+};
+
+inline static double calculateMaximumSpeedInternal(const VectorN& worldMove, const VectorN& maxSpeeds, const double distance, CalculatedValue value)
 {
     // First we need to figure out the minimum time for the move.
     // We determine this by calculating how long each axis would take to complete its move
@@ -154,7 +336,17 @@ inline static double calculateMaximumSpeedInternal(const VectorN& worldMove, con
         if (worldMove[i])
         {
             double minimumAxisTimeForMove = fabs(worldMove[i]) / maxSpeeds[i]; // m / (m/s) = s
-            LOG("axis " << i << " needs to travel " << worldMove[i] << " at a maximum of " << maxSpeeds[i] << " which would take " << minimumAxisTimeForMove << std::endl);
+
+            if (value == CalculatedValue::Speed)
+            {
+                LOG("axis " << i << " needs to travel " << worldMove[i] << " at a maximum of " << maxSpeeds[i] << " which would take " << minimumAxisTimeForMove << std::endl);
+            }
+            else
+            {
+                assert(value == CalculatedValue::Acceleration);
+                LOG("axis " << i << " needs to accelerate to " << worldMove[i] << " at a maximum rate of " << maxSpeeds[i] << " which would take " << minimumAxisTimeForMove << std::endl);
+            }
+
             minimumTimeForMove = std::max(minimumTimeForMove, minimumAxisTimeForMove);
         }
     }
@@ -162,7 +354,7 @@ inline static double calculateMaximumSpeedInternal(const VectorN& worldMove, con
     return distance / minimumTimeForMove;
 }
 
-inline static double calculateMaximumSpeed(const VectorN& worldMove, const VectorN& maxSpeeds, const double distance, int axisConfig)
+inline static double calculateMaximumSpeed(const VectorN& worldMove, const VectorN& maxSpeeds, const double distance, int axisConfig, CalculatedValue value)
 {
     if (axisConfig == AXIS_CONFIG_DELTA)
     {
@@ -172,7 +364,7 @@ inline static double calculateMaximumSpeed(const VectorN& worldMove, const Vecto
         fakeWorldMove[1] = 0;
         fakeWorldMove[2] = 0;
 
-        return calculateMaximumSpeedInternal(fakeWorldMove, maxSpeeds, distance);
+        return calculateMaximumSpeedInternal(fakeWorldMove, maxSpeeds, distance, value);
     }
     else if (axisConfig == AXIS_CONFIG_CORE_XY || axisConfig == AXIS_CONFIG_H_BELT)
     {
@@ -181,11 +373,11 @@ inline static double calculateMaximumSpeed(const VectorN& worldMove, const Vecto
         fakeWorldMove[0] = vabs(Vector3(fakeWorldMove[0], fakeWorldMove[1], 0));
         fakeWorldMove[1] = 0;
 
-        return calculateMaximumSpeedInternal(fakeWorldMove, maxSpeeds, distance);
+        return calculateMaximumSpeedInternal(fakeWorldMove, maxSpeeds, distance, value);
     }
     else
     {
-        return calculateMaximumSpeedInternal(worldMove, maxSpeeds, distance);
+        return calculateMaximumSpeedInternal(worldMove, maxSpeeds, distance, value);
     }
 }
 
@@ -196,6 +388,8 @@ void Path::initialize(const IntVectorN& machineStart,
     const VectorN& stepsPerM,
     const VectorN& maxSpeeds, /// Maximum allowable speeds in m/s
     const VectorN& maxAccelMPerSquareSecond,
+    const VectorN& maxSpeedJumps,
+    const VectorN& pressureAdvanceFactors,
     double requestedSpeed,
     double requestedAccel,
     int axisConfig,
@@ -205,7 +399,7 @@ void Path::initialize(const IntVectorN& machineStart,
 {
     this->zero();
 
-    const IntVectorN machineMove = machineEnd - machineStart;
+    machineMove = machineEnd - machineStart;
     worldMove = worldEnd - worldStart;
     distance = vabs(worldMove);
     startMachinePos = machineStart;
@@ -223,8 +417,13 @@ void Path::initialize(const IntVectorN& machineStart,
         }
     }
 
+    for (int axis = E_AXIS; axis <= C_AXIS; axis++)
+    {
+        flags |= (isAxisMove(axis) && !isAxisOnlyMove(axis) && pressureAdvanceFactors[axis] != 0) ? FLAG_USE_PRESSURE_ADVANCE : 0;
+    }
+
     // Now figure out if we can honor the user's requested speed.
-    fullSpeed = std::min(requestedSpeed, calculateMaximumSpeed(worldMove, maxSpeeds, distance, axisConfig));
+    fullSpeed = std::min(requestedSpeed, calculateMaximumSpeed(worldMove, maxSpeeds, distance, axisConfig, CalculatedValue::Speed));
     assert(!std::isnan(fullSpeed));
 
     const double idealTimeForMove = distance / fullSpeed; // m / (m/s) = s
@@ -235,7 +434,7 @@ void Path::initialize(const IntVectorN& machineStart,
         if (worldMove[i])
         {
             speeds[i] = worldMove[i] / idealTimeForMove;
-            if (std::abs(speeds[i]) < NEGLIGIBLE_ERROR)
+            if (std::abs(speeds[i]) < NEGLIGIBLE_ERROR) // TODO I suspect this could be improved by moving to integer steps?
             {
                 speeds[i] = 0;
             }
@@ -246,8 +445,23 @@ void Path::initialize(const IntVectorN& machineStart,
         }
     }
 
-    // As it turns out, this function can also calculate accel if we give it values that are all derivatives of what it normally wants
-    accel = std::min(requestedAccel, calculateMaximumSpeed(speeds, maxAccelMPerSquareSecond, fullSpeed, axisConfig));
+    baseSpeeds = machineMove.toVectorN() / idealTimeForMove;
+
+    VectorN localMaxAccel;
+
+    if (flags & FLAG_USE_PRESSURE_ADVANCE)
+    {
+        LOG("move will use pressure advance" << std::endl);
+        this->pressureAdvanceFactors = pressureAdvanceFactors;
+
+        localMaxAccel = calculateMaxAccelDueToPressureAdvance(pressureAdvanceFactors, maxAccelMPerSquareSecond, maxSpeedJumps);
+    }
+    else
+    {
+        localMaxAccel = maxAccelMPerSquareSecond;
+    }
+
+    accel = std::min(requestedAccel, calculateMaximumSpeed(speeds, localMaxAccel, fullSpeed, axisConfig, CalculatedValue::Acceleration));
 
     // Calculate whether we're guaranteed to reach cruising speed.
     double maximumAccelTime = fullSpeed / accel; // (m/s) / (m/s^2) = s
@@ -275,14 +489,7 @@ void Path::initialize(const IntVectorN& machineStart,
         assert(0);
     }
 
-    calculateExtruderMove(machineStart, machineEnd, idealTimeForMove, steps);
-
-    assert(!steps.empty());
-
-    if ((isAxisMove(E_AXIS) && !isAxisOnlyMove(E_AXIS)) || (isAxisMove(H_AXIS) && !isAxisOnlyMove(H_AXIS)))
-    {
-        flags |= FLAG_USE_PRESSURE_ADVANCE;
-    }
+    calculateExtruderMove(machineStart, machineEnd, idealTimeForMove, !!(flags & FLAG_USE_PRESSURE_ADVANCE), pressureAdvanceFactors, steps);
 
     LOG("Distance in m:     " << distance << std::endl);
     LOG("Speed in m/s:      " << fullSpeed << " requested: " << requestedSpeed << std::endl);
@@ -301,6 +508,44 @@ double Path::runFinalStepCalculations()
         for (auto& step : axisSteps)
         {
             step.time = stepperPath.dilateTime(step.time);
+        }
+    }
+
+    if (flags & FLAG_USE_PRESSURE_ADVANCE)
+    {
+        const double accelTime = (stepperPath.cruiseSpeed - stepperPath.startSpeed) / stepperPath.accel;
+        const double decelTime = (stepperPath.cruiseSpeed - stepperPath.endSpeed) / stepperPath.accel;
+
+        assert(accelTime >= 0 && decelTime >= 0);
+
+        const double startFactor = stepperPath.startSpeed / stepperPath.baseSpeed;
+        const double cruiseFactor = stepperPath.cruiseSpeed / stepperPath.baseSpeed;
+        const double endFactor = stepperPath.endSpeed / stepperPath.baseSpeed;
+
+        for (int axis = E_AXIS; axis <= C_AXIS; axis++)
+        {
+            if (machineMove[axis] == 0 || pressureAdvanceFactors[axis] == 0)
+            {
+                assert(machineMove[axis] == 0 || !steps[axis].empty());
+                continue;
+            }
+            else if (accelTime == 0 && decelTime == 0)
+            {
+                calculateLinearMove(axis, 0, machineMove[axis], stepperPath.moveEnd, steps[axis]);
+                continue;
+            }
+
+            assert(steps[axis].empty());
+
+            const double startSpeed = startFactor * baseSpeeds[axis];
+            const double cruiseSpeed = cruiseFactor * baseSpeeds[axis];
+            const double endSpeed = endFactor * baseSpeeds[axis];
+            const double accel = accelTime != 0 ? (cruiseSpeed - startSpeed) / accelTime : (cruiseSpeed - endSpeed) / decelTime;
+
+            calculatePressureAdvancedExtruderMove(axis, machineMove[axis],
+                startSpeed, cruiseSpeed, endSpeed,
+                accel, pressureAdvanceFactors[axis], stepperPath.moveEnd,
+                steps[axis]);
         }
     }
 
@@ -324,6 +569,9 @@ void Path::updateStepperPathParameters()
 
     double accelTime = (fullSpeed - startSpeed) / accel;
     double decelTime = (fullSpeed - endSpeed) / accel;
+
+    assert(startSpeed <= cruiseSpeed);
+    assert(endSpeed <= cruiseSpeed);
 
     double accelDistance = (cruiseSpeed * cruiseSpeed - startSpeed * startSpeed) / (2.0 * accel);
     double decelDistance = (cruiseSpeed * cruiseSpeed - endSpeed * endSpeed) / (2.0 * accel);

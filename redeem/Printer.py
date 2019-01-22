@@ -84,6 +84,7 @@ class Printer:
     self.max_speeds = np.ones(self.num_axes)
     self.max_speed_jumps = np.ones(self.num_axes) * 0.01
     self.acceleration = [0.3] * self.num_axes
+    self.pressure_advance_factors = np.zeros(self.num_axes)
     self.home_speed = np.ones(self.num_axes)
     self.home_backoff_speed = np.ones(self.num_axes)
     self.home_backoff_offset = np.zeros(self.num_axes)

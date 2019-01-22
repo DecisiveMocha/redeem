@@ -13,6 +13,7 @@ struct PathBuilder
     VectorN maxSpeedJumps;
     VectorN maxSpeeds;
     VectorN maxAccelMPerSquareSecond;
+    VectorN pressureAdvanceFactors;
 
     static PathBuilder CartesianBuilder()
     {
@@ -42,13 +43,11 @@ struct PathBuilder
     {
     }
 
-    Path makePath(double x, double y, double z, double speed)
+    Path makePath(const VectorN& move, double speed)
     {
         Path result;
 
-        VectorN travel(x, y, z, 0, 0, 0, 0, 0);
-
-        VectorN endPosition = currentPosition + travel;
+        VectorN endPosition = currentPosition + move;
 
         result.initialize(
             (currentPosition * stepsPerM).round(), // machineStart
@@ -58,6 +57,8 @@ struct PathBuilder
             stepsPerM,
             maxSpeeds,
             maxAccelMPerSquareSecond,
+            maxSpeedJumps,
+            pressureAdvanceFactors,
             speed,
             std::numeric_limits<double>::infinity(),
             AXIS_CONFIG_XY,
@@ -66,6 +67,11 @@ struct PathBuilder
             false);
 
         return result;
+    }
+
+    Path makePath(double x, double y, double z, double speed)
+    {
+        return makePath(VectorN(x, y, z), speed);
     }
 };
 

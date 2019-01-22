@@ -180,6 +180,9 @@ private:
     double endSpeed; /// Exit speed in m/s
     double accel; /// Acceleration in m/s^2
     IntVectorN startMachinePos; /// Starting position of the machine
+    IntVectorN machineMove; /// distances traveled in steps
+    VectorN baseSpeeds;
+    VectorN pressureAdvanceFactors;
 
     StepperPathParameters stepperPath;
     std::array<std::vector<Step>, NUM_AXES> steps;
@@ -204,6 +207,8 @@ public:
         const VectorN& stepsPerM,
         const VectorN& maxSpeeds, /// Maximum allowable speeds in m/s
         const VectorN& maxAccelMPerSquareSecond,
+        const VectorN& maxSpeedJumps,
+        const VectorN& pressureAdvanceFactors,
         double requestedSpeed,
         double requestedAccel,
         int axisConfig,

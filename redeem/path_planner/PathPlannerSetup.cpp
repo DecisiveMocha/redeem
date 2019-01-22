@@ -42,6 +42,12 @@ void PathPlanner::setAcceleration(VectorN accel)
 void PathPlanner::setMaxSpeedJumps(VectorN speedJumps)
 {
     optimizer.setMaxSpeedJumps(speedJumps);
+    maxSpeedJumps = speedJumps;
+}
+
+void PathPlanner::setPressureAdvanceFactors(VectorN pressureAdvanceFactors)
+{
+    this->pressureAdvanceFactors = pressureAdvanceFactors;
 }
 
 void PathPlanner::setAxisStepsPerMeter(VectorN stepPerM)

@@ -227,7 +227,7 @@ void PathPlanner::queueMove(VectorN endWorldPos,
     Path p;
 
     p.initialize(state, tweakedEndPos, startWorldPos, machineToWorld(endPos), axisStepsPerM,
-        maxSpeeds, maxAccelerationMPerSquareSecond,
+        maxSpeeds, maxAccelerationMPerSquareSecond, maxSpeedJumps, pressureAdvanceFactors,
         speed, accel, axis_config, delta_bot, cancelable, is_probe);
 
     if (p.isNoMove())
@@ -244,7 +244,6 @@ void PathPlanner::queueMove(VectorN endWorldPos,
         probeResult = p.prepareProbeResult();
     }
 
-    /*
     LOG("checking deltas..." << std::endl);
     std::cout.flush();
     {
@@ -263,6 +262,11 @@ void PathPlanner::queueMove(VectorN endWorldPos,
 
         for (int i = 0; i < NUM_AXES; i++)
         {
+            if (p.willUsePressureAdvance() && pressureAdvanceFactors[i] != 0)
+            {
+                continue;
+            }
+
             if (state[i] + realDeltas[i] != endPos[i])
             {
                 LOG("step count sanity check failed on axis " << i << " because " << state[i] << " + " << realDeltas[i] << " != " << endPos[i] << std::endl);
@@ -271,7 +275,6 @@ void PathPlanner::queueMove(VectorN endWorldPos,
         }
     }
     LOG("done!" << std::endl);
-	*/
 
     if (!pathQueue.addPath(std::move(p)))
     {

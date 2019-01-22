@@ -141,6 +141,7 @@ class PathPlanner:
     self.native_planner.setMaxSpeeds(tuple(self.printer.max_speeds))
     self.native_planner.setAcceleration(tuple(self.printer.acceleration))
     self.native_planner.setMaxSpeedJumps(tuple(self.printer.max_speed_jumps))
+    self.native_planner.setPressureAdvanceFactors(tuple(self.printer.pressure_advance_factors))
     #    self.native_planner.setPrintMoveBufferWait(int(self.printer.print_move_buffer_wait))
     #    self.native_planner.setMaxBufferedMoveTime(int(self.printer.max_buffered_move_time))
     self.native_planner.setSoftEndstopsMin(tuple(self.printer.soft_min))

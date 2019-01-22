@@ -1,5 +1,5 @@
 set (headers "")
-set (sources PathPlannerTests.cpp PathOptimizerTests.cpp PathQueueTests.cpp)
+set (sources PathPlannerTests.cpp PathOptimizerTests.cpp PathQueueTests.cpp PathTests.cpp)
 
 include_directories(..)
 

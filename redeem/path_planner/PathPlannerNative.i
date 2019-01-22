@@ -159,6 +159,7 @@ class PathPlanner {
   void setAxisStepsPerMeter(VectorN stepPerM);
   void setAcceleration(VectorN accel);
   void setMaxSpeedJumps(VectorN speedJumps);
+  void setPressureAdvanceFactors(VectorN pressureAdvanceFactors);
   void setSoftEndstopsMin(VectorN stops);
   void setSoftEndstopsMax(VectorN stops);
   void setStopPrintOnSoftEndstopHit(bool stop);
