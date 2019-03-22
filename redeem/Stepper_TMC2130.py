@@ -354,15 +354,17 @@ class Stepper_TMC2130(Stepper):
     self.gconf.data.bits.diag1_stall = 1
 
     self.chopconf.data.bits.diss2g = 1
-    self.chopconf.data.bits.vsense = 1
+    self.chopconf.data.bits.vsense = 1 # note that this affects the current calculations below
     self.chopconf.data.bits.tbl = 2
-    self.chopconf.data.bits.toff = 5
+    self.chopconf.data.bits.toff = 0 # this is changed below
 
     self.set_microstepping(6)    # writes gconf and chopconf
 
     self.coolconf.data.bits.sgt = 0xf
     self.coolconf.data.bits.semax = 2
     self.coolconf.data.bits.semin = 1
+
+    self.chopconf.data.bits.toff = 3 # set but don't write this so we start out "disabled"
 
     self._write_register(self.coolconf)
 
@@ -372,7 +374,7 @@ class Stepper_TMC2130(Stepper):
 
     self._write_register(self.ihold_irun)
 
-    self.current_enabled = True
+    self.current_enabled = False
     self._read_register(self.gstat)
 
   def sanity_test(self):
@@ -525,16 +527,31 @@ class Stepper_TMC2130(Stepper):
     self._write_register(self.chopconf)
 
   def set_current_value(self, i_rms):
-    # TODO this needs to manipulate IHOLD_IRUN - need hardware details to work out the math
-    pass
+    # we have 0.1 ohm sense resistors with high sensitivity enabled (vsense = 1)
+    # calculations here come from Trinamics TMC2130 spec sheet, page 55
+    # our peak RMS current with IRUN==31 is 1.06A
+
+    # I_rms = (current_scale + 1) / 32 * I_peak
+    # which solves to...
+    current_scale = int(0.5+ (32 * i_rms / 1.06 - 1))
+
+    current_scale = max(0, min(31, current_scale))
+
+    self.ihold_irun.data.bits.IRUN = current_scale
+    self.ihold_irun.data.bits.IHOLD = max(0, int(current_scale * 0.33 + 0.5))
+    self._write_register(self.ihold_irun)
 
   def set_disabled(self, force_update=False):
+    # preserve the register value for when we re-enable
+    original_value = self.chopconf.data.register
+
     self.chopconf.data.bits.toff = 0
     self._write_register(self.chopconf)
     self.current_enabled = False
 
+    self.chopconf.data.register = original_value
+
   def set_enabled(self, force_update=False):
-    self.chopconf.data.bits.toff = 4
     self._write_register(self.chopconf)
     self.current_enabled = True
 
