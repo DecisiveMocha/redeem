@@ -405,6 +405,9 @@ class Stepper_TMC2130(Stepper):
     self.xdirect.data.register = 0
     self._write_register(self.xdirect)
 
+    self.step_pin.disable()
+    self.dir_pin.disable()
+
     self._read_register(self.ioin)
     if self.ioin.data.bits.STEP != 0 or self.ioin.data.bits.DIR != 0:
       errors += 1
