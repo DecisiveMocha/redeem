@@ -357,22 +357,19 @@ class Stepper_TMC2130(Stepper):
     self.chopconf.data.bits.vsense = 1 # note that this affects the current calculations below
     self.chopconf.data.bits.tbl = 2
     self.chopconf.data.bits.toff = 0 # this is changed below
+    self.chopconf.data.bits.hstrt = 4
+    self.chopconf.data.bits.hend = 1
 
     self.set_microstepping(6)    # writes gconf and chopconf
 
-    self.coolconf.data.bits.sgt = 0xf
-    self.coolconf.data.bits.semax = 2
-    self.coolconf.data.bits.semin = 1
-
     self.chopconf.data.bits.toff = 3 # set but don't write this so we start out "disabled"
 
-    self._write_register(self.coolconf)
-
-    self.ihold_irun.data.bits.IHOLD = 3
-    self.ihold_irun.data.bits.IRUN = 8
     self.ihold_irun.data.bits.IHOLDDELAY = 10
 
     self._write_register(self.ihold_irun)
+
+    self.pwmconf.data.bits.pwm_autoscale = 1
+    self._write_register(self.pwmconf)
 
     self.current_enabled = False
     self._read_register(self.gstat)
