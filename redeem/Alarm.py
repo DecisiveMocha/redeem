@@ -22,7 +22,11 @@ import time
 import logging
 
 from multiprocessing import JoinableQueue
-import Queue
+import sys
+if sys.version_info[0] >= 3:
+    import queue
+else:
+    import Queue as queue
 from six import iteritems
 
 
@@ -175,7 +179,7 @@ class AlarmExecutor:
         alarm.execute()
         logging.debug("Alarm executed")
         self.queue.task_done()
-      except Queue.Empty:
+      except queue.Empty:
         continue
 
   def start(self):

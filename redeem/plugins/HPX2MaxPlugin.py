@@ -29,7 +29,7 @@ License: GNU GPL v3: http://www.gnu.org/copyleft/gpl.html
  along with Redeem.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from AbstractPlugin import AbstractPlugin
+from .AbstractPlugin import AbstractPlugin
 import logging
 try:
   from gcodes.GCodeCommand import GCodeCommand

@@ -1,7 +1,7 @@
 import ctypes
 import logging
 import math
-from Stepper import Stepper
+from .Stepper import Stepper
 
 
 def int_to_bytes(value):

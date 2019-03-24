@@ -24,7 +24,7 @@ from threading import Thread
 import time
 import logging
 import numpy as np
-from Alarm import Alarm
+from .Alarm import Alarm
 
 
 class Heater(object):

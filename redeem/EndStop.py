@@ -25,7 +25,7 @@ License: GNU GPL v3: http://www.gnu.org/copyleft/gpl.html
 import logging
 import re
 from evdev import InputDevice, ecodes
-from PruInterface import *
+from .PruInterface import *
 from select import select
 from threading import Thread
 

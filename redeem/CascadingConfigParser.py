@@ -18,16 +18,20 @@ License: GNU GPL v3: http://www.gnu.org/copyleft/gpl.html
  along with Redeem.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import ConfigParser
+import sys
+if sys.version_info[0] >= 3:
+    import configparser
+else:
+    import ConfigParser as configparser
 import os
 import logging
 import struct
 
 
-class CascadingConfigParser(ConfigParser.SafeConfigParser):
+class CascadingConfigParser(configparser.ConfigParser):
   def __init__(self, config_files):
 
-    ConfigParser.SafeConfigParser.__init__(self)
+    configparser.ConfigParser.__init__(self)
 
     # Write options in the case it was read.
     # self.optionxform = str
@@ -42,7 +46,7 @@ class CascadingConfigParser(ConfigParser.SafeConfigParser):
     for config_file in self.config_files:
       if os.path.isfile(config_file):
         logging.info("Using config file " + config_file)
-        self.readfp(open(config_file))
+        self.read_file(open(config_file))
       else:
         logging.warning("Missing config file " + config_file)
         # Might also add command line options for overriding stuff
@@ -64,8 +68,8 @@ class CascadingConfigParser(ConfigParser.SafeConfigParser):
     for config_file in self.config_files:
       if os.path.isfile(config_file):
         c_file = os.path.basename(config_file)
-        cp = ConfigParser.SafeConfigParser()
-        cp.readfp(open(config_file))
+        cp = configparser.ConfigParser()
+        cp.read_file(open(config_file))
         fs.append((c_file, cp))
 
     lines = []
@@ -93,11 +97,11 @@ class CascadingConfigParser(ConfigParser.SafeConfigParser):
           to_save.append((section, option, val, old))
 
     # Update local config with changed values
-    local = ConfigParser.SafeConfigParser()
+    local = configparser.ConfigParser()
     # Start each file with revision identification
     local.add_section("Configuration")
     local.set("Configuration", "version", "1")
-    local.readfp(open(filename, "r"))
+    local.read_file(open(filename, "r"))
     for opt in to_save:
       (section, option, value, old) = opt
       if not local.has_section(section):
@@ -110,10 +114,10 @@ class CascadingConfigParser(ConfigParser.SafeConfigParser):
 
   def check(self, filename):
     """ Check the settings currently set against default.cfg """
-    default = ConfigParser.SafeConfigParser()
-    default.readfp(open(os.path.join(self.config_location, "default.cfg")))
-    local = ConfigParser.SafeConfigParser()
-    local.readfp(open(filename))
+    default = configparser.ConfigParser()
+    default.read_file(open(os.path.join(self.config_location, "default.cfg")))
+    local = configparser.ConfigParser()
+    local.read_file(open(filename))
 
     local_ok = True
     diff = set(local.sections()) - set(default.sections())

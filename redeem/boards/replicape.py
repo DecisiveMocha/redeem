@@ -19,7 +19,7 @@ import redeem.SPI as SPI
 def probe_replicape(printer):
   results = find_replicape()
   if results == None:
-    logging.warn("No replicape found")
+    logging.warning("No replicape found")
     return
 
   eeprom_path, eeprom_data, revision = results

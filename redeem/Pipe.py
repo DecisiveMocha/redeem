@@ -66,14 +66,14 @@ class Pipe:
     logging.info("Unlinking " + self.pipe_link)
     try:
       os.unlink(self.pipe_link)
-    except OSError, e:
+    except OSError as e:
       # file not found is fine to ignore - anythine else and we should log it
       if e.errno != errno.ENOENT:
         logging.error("Failed to unlink " + self.pipe_link + ": " + e.strerror)
 
     logging.info("re-linking " + self.pipe_link)
     os.symlink(slave, self.pipe_link)
-    os.chmod(self.pipe_link, 0666)
+    os.chmod(self.pipe_link, 0o666)
 
     logging.info("Pipe " + self.prot + " open. Use '" + self.pipe_link + "' to communicate with it")
 

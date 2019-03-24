@@ -18,7 +18,7 @@ import redeem.SPI as SPI
 def probe_revolve(printer):
   results = find_revolve()
   if results == None:
-    logging.warn("No revolve found")
+    logging.warning("No revolve found")
     return
 
   eeprom_path, eeprom_data, revision = results

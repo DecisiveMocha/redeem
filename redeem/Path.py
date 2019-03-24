@@ -219,9 +219,9 @@ class Path:
     for key in start_linears.keys():
       linear_dims[key] = np.linspace(start_linears[key], end_linears[key], num_segments)
 
-    zipped_dim_dicts = zip(*[[{
+    zipped_dim_dicts = list(zip(*[[{
         key: value
-    } for value in values] for key, values in linear_dims.items()])
+    } for value in values] for key, values in linear_dims.items()]))
 
     path_segments = []
 

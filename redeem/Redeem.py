@@ -31,39 +31,43 @@ import os.path
 import signal
 import threading
 from threading import Thread
-import Queue
-import numpy as np
 import sys
-import boards.probe
+if sys.version_info[0] >= 3:
+    import queue
+else:
+    import Queue as queue
+import numpy as np
 
-from Mosfet import Mosfet
-from Stepper import *
-from TemperatureSensor import *
-from Fan import Fan
-from Servo import Servo
-from EndStop import EndStop
-from USB import USB
-from Pipe import Pipe
-from Ethernet import Ethernet
-from Extruder import Extruder, HBP
-from Cooler import Cooler
-from Path import Path
-from PathPlanner import PathPlanner
-from Gcode import Gcode
-from ColdEnd import ColdEnd
-from PruFirmware import PruFirmware
-from CascadingConfigParser import CascadingConfigParser
-from Printer import Printer
-from GCodeProcessor import GCodeProcessor
-from PluginsController import PluginsController
-from Delta import Delta
-from Enable import Enable
-from RotaryEncoder import *
-from FilamentSensor import *
-from Alarm import Alarm, AlarmExecutor
-from StepperWatchdog import StepperWatchdog
-from Key_pin import Key_pin, Key_pin_listener
-from Watchdog import Watchdog
+from . import boards
+
+from .Mosfet import Mosfet
+from .Stepper import *
+from .TemperatureSensor import *
+from .Fan import Fan
+from .Servo import Servo
+from .EndStop import EndStop
+from .USB import USB
+from .Pipe import Pipe
+from .Ethernet import Ethernet
+from .Extruder import Extruder, HBP
+from .Cooler import Cooler
+from .Path import Path
+from .PathPlanner import PathPlanner
+from .Gcode import Gcode
+from .ColdEnd import ColdEnd
+from .PruFirmware import PruFirmware
+from .CascadingConfigParser import CascadingConfigParser
+from .Printer import Printer
+from .GCodeProcessor import GCodeProcessor
+from .PluginsController import PluginsController
+from .Delta import Delta
+from .Enable import Enable
+from .RotaryEncoder import *
+from .FilamentSensor import *
+from .Alarm import Alarm, AlarmExecutor
+from .StepperWatchdog import StepperWatchdog
+from .Key_pin import Key_pin, Key_pin_listener
+from .Watchdog import Watchdog
 from six import iteritems
 
 # Global vars
@@ -84,7 +88,7 @@ class Redeem:
      - default is installed directory
      - allows for running in a local directory when debugging
     """
-    from __init__ import __version__
+    from .__init__ import __version__
     logging.info("Redeem initializing {}".format(__version__))
 
     global printer
@@ -127,7 +131,7 @@ class Redeem:
     level = self.printer.config.getint('System', 'loglevel')
     if level > 0:
       logging.getLogger().setLevel(level)
-      logging.warn("log level set to %d", level)
+      logging.warning("log level set to %d", level)
 
     # Set up additional logging, if present:
     if self.printer.config.getboolean('System', 'log_to_file'):
@@ -339,10 +343,10 @@ class Redeem:
         printer.filament_sensors.append(sensor)
 
     # Make a queue of commands
-    self.printer.commands = Queue.Queue(10)
+    self.printer.commands = queue.Queue(10)
 
     # Make a queue of commands that should not be buffered
-    self.printer.unbuffered_commands = Queue.Queue(10)
+    self.printer.unbuffered_commands = queue.Queue(10)
 
     # Bed compensation matrix
     printer.matrix_bed_comp = printer.load_bed_compensation_matrix()
@@ -500,7 +504,7 @@ class Redeem:
       while RedeemIsRunning:
         try:
           gcode = queue.get(block=True, timeout=1)
-        except Queue.Empty:
+        except queue.Empty:
           continue
         logging.debug("Executing " + gcode.code() + " from " + name + " " + gcode.message)
         self._execute(gcode)

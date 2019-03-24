@@ -22,7 +22,7 @@ Author: Elias Bakken
  You should have received a copy of the GNU General Public License
  along with Redeem.  If not, see <http://www.gnu.org/licenses/>.
 """
-from Alarm import Alarm
+from .Alarm import Alarm
 
 from threading import Thread
 import time

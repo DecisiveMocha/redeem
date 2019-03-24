@@ -7,7 +7,7 @@ email: zittix(at)xwaves(dot)net
 License: CC BY-SA: http://creativecommons.org/licenses/by-sa/2.0/
 """
 
-from gcodes.GCodeCommand import GCodeCommand
+from .gcodes.GCodeCommand import GCodeCommand
 import logging
 import threading
 

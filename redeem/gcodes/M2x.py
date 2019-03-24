@@ -29,19 +29,23 @@ exfat - is also a file system option commonly found on USB flash drives and othe
 from __future__ import absolute_import
 
 import os
+import sys
 from abc import abstractmethod, ABCMeta
 
 import sh
 import logging
-from threading import Lock
-from thread import start_new_thread
+from threading import Lock, Thread
 
 from time import sleep
 
 from .GCodeCommand import GCodeCommand
 from redeem.Gcode import Gcode
 
-import cProfile, pstats, StringIO
+import cProfile, pstats
+if sys.version_info[0] >= 3:
+    from io import StringIO
+else:
+    import StringIO
 
 # device_location = '/dev/mmcblk1p1'
 USB_DEVICE_LOCATION = '/dev/sda1'
@@ -305,7 +309,8 @@ class M24(GCodeCommand):
     active = self.printer.sd_card_manager.get_status()
     if not active:
       logging.info("M24: Printing file '{}'".format(fn))
-      start_new_thread(self.process_gcode, (g, ))
+      Thread()
+      Thread(target=self.process_gcode, args=(g)).start()
       # allow some time for the new thread to start before we proceed
       counter = 0
       while (not active) and (counter < 10):

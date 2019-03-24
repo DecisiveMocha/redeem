@@ -77,8 +77,8 @@ class Ethernet:
     try:
       if self.client:
         self.client.send(message)
-    except socket.error as (value, message):
-      logging.error("Ethernet " + message)
+    except socket.error as error:
+      logging.error("Ethernet " + error[1])
 
   def read_line(self):
     """read a line from a socket"""
@@ -86,8 +86,8 @@ class Ethernet:
     while self.running:
       try:
         char = self.client.recv(1)
-      except socket.error as (value, message):
-        logging.error("Ethernet " + message)
+      except socket.error as error:
+        logging.error("Ethernet " + error[1])
         char = ""
       if char == "":
         logging.warning("Ethernet: Connection reset by peer.")

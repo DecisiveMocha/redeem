@@ -25,14 +25,14 @@ License: GNU GPL v3: http://www.gnu.org/copyleft/gpl.html
 """
 
 import logging
-from Path import Path, AbsolutePath, RelativePath, G92Path
-from Delta import Delta
-from Printer import Printer
+from .Path import Path, AbsolutePath, RelativePath, G92Path
+from .Delta import Delta
+from .Printer import Printer
 import numpy as np
-from PruInterface import PruInterface
-from BedCompensation import BedCompensation
-from DeltaAutoCalibration import delta_auto_calibration
-from Alarm import Alarm
+from .PruInterface import PruInterface
+from .BedCompensation import BedCompensation
+from .DeltaAutoCalibration import delta_auto_calibration
+from .Alarm import Alarm
 from six import iteritems
 import traceback
 

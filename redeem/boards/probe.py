@@ -1,5 +1,5 @@
-import replicape
-import revolve
+from . import replicape
+from . import revolve
 
 
 def probe_all_boards(printer):
