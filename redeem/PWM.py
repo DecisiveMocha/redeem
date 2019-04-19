@@ -44,7 +44,8 @@ class PWM(object):
 
   @staticmethod
   def __init_pwm():
-    kernel_version = subprocess.check_output(["uname", "-r"]).strip()
+    kernel_version = subprocess.check_output(["uname", "-r"]).decode("utf-8").strip()
+    logging.info("kernel version %s", kernel_version)
     [major, minor, rev] = kernel_version.split("-")[0].split(".")
     if (int(major) == 3 and int(minor) >= 14) or int(major) > 3:
       PWM.i2c = I2C(0x70, 2)    # Open device

@@ -76,22 +76,25 @@ class CascadingConfigParser(Parser):
     paths.extend(glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/nvmem/at24-[1-4]/nvmem"))
     #paths.append(glob.glob("/sys/bus/i2c/devices/[1-2]-005[4-7]/eeprom"))
     for i, path in enumerate(paths):
+      logging.info("scanning %s", path)
       try:
         with open(path, "rb") as f:
           data = f.read(120)
           name = data[58:74].strip()
-          if name == "BB-BONE-REPLICAP":
-            self.replicape_revision = data[38:42]
+          if name == b"BB-BONE-REPLICAP":
+            self.replicape_revision = data[38:42].decode("utf-8")
             self.replicape_data = data
             self.replicape_path = path
-          elif name[:13] == "BB-BONE-REACH":
-            self.reach_revision = data[38:42]
+          elif name[:13] == b"BB-BONE-REACH":
+            self.reach_revision = data[38:42].decode("utf-8")
             self.reach_data = data
             self.reach_path = path
           if self.replicape_revision != None and self.reach_revision != None:
             break
       except IOError as e:
+        logging.info("failed with %s", e)
         pass
+    logging.info("found Replicape with revision %s", self.replicape_revision)
     # Parameters from the hardware
     self.setup_key()
 
@@ -185,7 +188,7 @@ class CascadingConfigParser(Parser):
 
   def setup_key(self):
     """ Get the generated key from the config or create one """
-    self.replicape_key = "".join(struct.unpack('20c', self.replicape_data[100:120]))
+    self.replicape_key = self.replicape_data[100:120].decode("utf-8")
     logging.debug("Found Replicape key: '" + self.replicape_key + "'")
     if self.replicape_key == '\x00' * 20:
       logging.debug("Replicape key invalid")

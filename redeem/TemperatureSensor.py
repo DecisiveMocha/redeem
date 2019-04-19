@@ -33,8 +33,8 @@ import math
 import logging
 from threading import Lock
 import sys
-import TemperatureSensorConfigs
-from Alarm import Alarm
+from . import TemperatureSensorConfigs
+from .Alarm import Alarm
 
 
 class TemperatureSensor:

@@ -263,7 +263,7 @@ class Redeem:
     if printer.axis_config == Printer.AXIS_CONFIG_DELTA:
       opts = ["L", "r", "A_radial", "B_radial", "C_radial", "A_angular", "B_angular", "C_angular"]
       for opt in opts:
-        Delta.__dict__[opt] = printer.config.getfloat('Delta', opt)
+        setattr(Delta, opt, printer.config.getfloat('Delta', opt))
 
     # Discover and add all DS18B20 cold ends.
     paths = glob.glob("/sys/bus/w1/devices/28-*/w1_slave")

@@ -29,7 +29,7 @@ import shutil
 import re
 from six import iteritems
 
-from Printer import Printer
+from .Printer import Printer
 
 
 class PruFirmware:

@@ -31,7 +31,7 @@ import os
 import errno
 import fcntl
 import termios
-from Gcode import Gcode
+from .Gcode import Gcode
 
 
 class Pipe:
@@ -67,7 +67,7 @@ class Pipe:
 
     try:
       os.unlink(self.pipe_link)
-    except OSError, e:
+    except OSError as e:
       # file not found is fine to ignore - anythine else and we should log it
       if e.errno != errno.ENOENT:
         logging.error("Failed to unlink '{}': {}".format(self.pipe_link, e.strerror))

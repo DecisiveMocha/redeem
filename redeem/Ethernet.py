@@ -23,7 +23,7 @@ License: GNU GPL v3: http://www.gnu.org/copyleft/gpl.html
 from threading import Thread
 import socket
 import logging
-from Gcode import Gcode
+from .Gcode import Gcode
 
 size = 1024
 
@@ -77,8 +77,8 @@ class Ethernet:
     try:
       if self.client:
         self.client.send(message)
-    except socket.error as (value, message):
-      logging.error("Ethernet " + message)
+    except socket.error as e:
+      logging.error("Ethernet " + e[1])
 
   def read_line(self):
     """read a line from a socket"""
@@ -86,8 +86,8 @@ class Ethernet:
     while self.running:
       try:
         char = self.client.recv(1)
-      except socket.error as (value, message):
-        logging.error("Ethernet " + message)
+      except socket.error as e:
+        logging.error("Ethernet " + e[1])
         char = ""
       if char == "":
         logging.warning("Ethernet: Connection reset by peer.")
