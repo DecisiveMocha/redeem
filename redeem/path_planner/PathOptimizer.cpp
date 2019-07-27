@@ -139,7 +139,7 @@ bool PathOptimizer::doesJunctionSpeedViolateMaxSpeedJumps(const VectorN& entrySp
 
     for (int i = 0; i < NUM_AXES; i++)
     {
-        areSpeedsOkay &= std::abs(speedJumps[i]) - maxSpeedJumps[i] < NEGLIGIBLE_ERROR;
+        areSpeedsOkay &= std::abs(speedJumps[i]) - m_maxSpeedJumps[i] < NEGLIGIBLE_ERROR;
     }
 
     return !areSpeedsOkay;
@@ -161,7 +161,7 @@ std::tuple<double, double> PathOptimizer::calculateJunctionSpeed(const Path& ent
     {
         const double jump = speedJumps[i];
 
-        if (std::abs(jump) > maxSpeedJumps[i])
+        if (std::abs(jump) > m_maxSpeedJumps[i])
         {
             const double desiredEntryAxisSpeed = entryPath.getSpeeds()[i];
             const double desiredExitAxisSpeed = exitPath.getSpeeds()[i];
@@ -170,35 +170,35 @@ std::tuple<double, double> PathOptimizer::calculateJunctionSpeed(const Path& ent
             // first check for a stop - if so, slow down move where this axis actually moves
             if (desiredEntryAxisSpeed == 0)
             {
-                exitFactor = std::min(exitFactor, maxSpeedJumps[i] / std::abs(desiredExitAxisSpeed));
+                exitFactor = std::min(exitFactor, m_maxSpeedJumps[i] / std::abs(desiredExitAxisSpeed));
             }
             else if (desiredExitAxisSpeed == 0)
             {
-                entryFactor = std::min(entryFactor, maxSpeedJumps[i] / std::abs(desiredEntryAxisSpeed));
+                entryFactor = std::min(entryFactor, m_maxSpeedJumps[i] / std::abs(desiredEntryAxisSpeed));
             }
             else if (std::signbit(desiredEntryAxisSpeed) != std::signbit(desiredExitAxisSpeed))
             {
                 // reversal case
                 // first try to slow down the faster move in absolute terms
-                if (std::abs(desiredEntryAxisSpeed) > std::abs(desiredExitAxisSpeed) && std::abs(desiredExitAxisSpeed) <= 0.5 * maxSpeedJumps[i])
+                if (std::abs(desiredEntryAxisSpeed) > std::abs(desiredExitAxisSpeed) && std::abs(desiredExitAxisSpeed) <= 0.5 * m_maxSpeedJumps[i])
                 {
                     // entry is faster than exit and slowing it down won't make it slower than exit
                     // slow down the entry speed
-                    const double possibleEntryAxisSpeed = desiredExitAxisSpeed + (desiredEntryAxisSpeed > 0) ? maxSpeedJumps[i] : -maxSpeedJumps[i];
+                    const double possibleEntryAxisSpeed = desiredExitAxisSpeed + (desiredEntryAxisSpeed > 0) ? m_maxSpeedJumps[i] : -m_maxSpeedJumps[i];
                     entryFactor = std::min(entryFactor, possibleEntryAxisSpeed / desiredEntryAxisSpeed);
                 }
-                else if (std::abs(desiredExitAxisSpeed) > std::abs(desiredEntryAxisSpeed) && std::abs(desiredEntryAxisSpeed) <= 0.5 * maxSpeedJumps[i])
+                else if (std::abs(desiredExitAxisSpeed) > std::abs(desiredEntryAxisSpeed) && std::abs(desiredEntryAxisSpeed) <= 0.5 * m_maxSpeedJumps[i])
                 {
                     // exit is faster than entry and slowing it down won't make it slower than entry
                     // slow down the exit speed
-                    const double possibleExitAxisSpeed = desiredEntryAxisSpeed + (desiredExitAxisSpeed > 0) ? maxSpeedJumps[i] : -maxSpeedJumps[i];
+                    const double possibleExitAxisSpeed = desiredEntryAxisSpeed + (desiredExitAxisSpeed > 0) ? m_maxSpeedJumps[i] : -m_maxSpeedJumps[i];
                     exitFactor = std::min(exitFactor, possibleExitAxisSpeed / desiredExitAxisSpeed);
                 }
                 else
                 {
                     // we need to slow down both - use the safe speeds
-                    entryFactor = std::min(entryFactor, std::abs((0.5 * maxSpeedJumps[i]) / desiredEntryAxisSpeed));
-                    exitFactor = std::min(exitFactor, std::abs((0.5 * maxSpeedJumps[i]) / desiredExitAxisSpeed));
+                    entryFactor = std::min(entryFactor, std::abs((0.5 * m_maxSpeedJumps[i]) / desiredEntryAxisSpeed));
+                    exitFactor = std::min(exitFactor, std::abs((0.5 * m_maxSpeedJumps[i]) / desiredExitAxisSpeed));
                 }
             }
             else
@@ -207,14 +207,14 @@ std::tuple<double, double> PathOptimizer::calculateJunctionSpeed(const Path& ent
                 // slow down the faster move
                 if (std::abs(desiredEntryAxisSpeed) > std::abs(desiredExitAxisSpeed))
                 {
-                    const double possibleEntryAxisSpeed = desiredEntryAxisSpeed > 0 ? desiredExitAxisSpeed + maxSpeedJumps[i]
-                                                                                    : desiredExitAxisSpeed - maxSpeedJumps[i];
+                    const double possibleEntryAxisSpeed = desiredEntryAxisSpeed > 0 ? desiredExitAxisSpeed + m_maxSpeedJumps[i]
+                                                                                    : desiredExitAxisSpeed - m_maxSpeedJumps[i];
                     entryFactor = std::min(entryFactor, possibleEntryAxisSpeed / desiredEntryAxisSpeed);
                 }
                 else
                 {
-                    const double possibleExitAxisSpeed = desiredExitAxisSpeed > 0 ? desiredEntryAxisSpeed + maxSpeedJumps[i]
-                                                                                  : desiredEntryAxisSpeed - maxSpeedJumps[i];
+                    const double possibleExitAxisSpeed = desiredExitAxisSpeed > 0 ? desiredEntryAxisSpeed + m_maxSpeedJumps[i]
+                                                                                  : desiredEntryAxisSpeed - m_maxSpeedJumps[i];
                     exitFactor = std::min(exitFactor, possibleExitAxisSpeed / desiredExitAxisSpeed);
                 }
             }
@@ -234,9 +234,9 @@ std::tuple<double, double> PathOptimizer::calculateJunctionSpeed(const Path& ent
         {
             const double jump = std::abs(speedJumps[i]);
 
-            if (jump > maxSpeedJumps[i])
+            if (jump > m_maxSpeedJumps[i])
             {
-                factor = std::min(factor, maxSpeedJumps[i] / jump);
+                factor = std::min(factor, m_maxSpeedJumps[i] / jump);
             }
         }
 
@@ -281,9 +281,9 @@ double PathOptimizer::calculateReachableJunctionSpeed(const Path& firstPath, con
 
     for (int i = 0; i < NUM_AXES; i++)
     {
-        if (std::abs(speedJumps[i]) > maxSpeedJumps[i])
+        if (std::abs(speedJumps[i]) > m_maxSpeedJumps[i])
         {
-            double reachableSpeed = firstJunctionSpeeds[i] + (secondPath.getSpeeds()[i] > firstJunctionSpeeds[i] ? maxSpeedJumps[i] : -maxSpeedJumps[i]);
+            double reachableSpeed = firstJunctionSpeeds[i] + (secondPath.getSpeeds()[i] > firstJunctionSpeeds[i] ? m_maxSpeedJumps[i] : -m_maxSpeedJumps[i]);
 
             // tweak for numerical accuracy - floating point and zero don't get along too well
             if (secondPath.getSpeeds()[i] == 0)
@@ -307,7 +307,7 @@ double PathOptimizer::calculateReachableJunctionSpeed(const Path& firstPath, con
 
     for (int i = 0; i < NUM_AXES; i++)
     {
-        assert(std::abs(finalSpeedJumps[i]) - maxSpeedJumps[i] < NEGLIGIBLE_ERROR);
+        assert(std::abs(finalSpeedJumps[i]) - m_maxSpeedJumps[i] < NEGLIGIBLE_ERROR);
     }
 
     return secondFactor * secondPath.getFullSpeed();
@@ -324,7 +324,7 @@ double PathOptimizer::calculateSafeSpeed(const Path& path)
 
     for (int i = 0; i < NUM_AXES; i++)
     {
-        const double safeAxisTime = std::abs(path.getWorldMove()[i]) / (maxSpeedJumps[i] / 2);
+        const double safeAxisTime = std::abs(path.getWorldMove()[i]) / (m_maxSpeedJumps[i] / 2);
         assert(safeAxisTime >= 0);
         safeTime = std::max(safeTime, safeAxisTime);
     }
@@ -337,5 +337,5 @@ double PathOptimizer::calculateSafeSpeed(const Path& path)
 
 void PathOptimizer::setMaxSpeedJumps(const VectorN& maxSpeedJumps)
 {
-    this->maxSpeedJumps = maxSpeedJumps;
+    this->m_maxSpeedJumps = maxSpeedJumps;
 }

@@ -7,7 +7,7 @@ class PathOptimizer final : public PathOptimizerInterface
 private:
     friend struct PathOptimizerTests;
 
-    VectorN maxSpeedJumps;
+    VectorN m_maxSpeedJumps;
 
     std::tuple<double, double> calculateJunctionSpeed(const Path& previousPath, const Path& newPath);
     double calculateReachableJunctionSpeed(const Path& firstPath, const double firstOverallSpeed, const Path& secondSpeeds);
