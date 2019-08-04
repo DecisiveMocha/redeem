@@ -524,13 +524,14 @@ double Path::runFinalStepCalculations()
 
         for (int axis = E_AXIS; axis <= C_AXIS; axis++)
         {
-            if (machineMove[axis] == 0 || pressureAdvanceFactors[axis] == 0)
+            if (!willAxisUsePressureAdvance(axis))
             {
                 assert(machineMove[axis] == 0 || !steps[axis].empty());
                 continue;
             }
             else if (accelTime == 0 && decelTime == 0)
             {
+                // no acceleration means there's nothing to advance
                 calculateLinearMove(axis, 0, machineMove[axis], stepperPath.moveEnd, steps[axis]);
                 continue;
             }

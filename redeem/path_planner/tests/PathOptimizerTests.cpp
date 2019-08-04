@@ -359,3 +359,139 @@ TEST_F(PathOptimizerTests, 135DegreeAngle)
     EXPECT_DOUBLE_EQ(firstSpeed, 0.005);
     EXPECT_DOUBLE_EQ(secondSpeed, 0.0070710678118654762);
 }
+
+TEST_F(PathOptimizerTests, TwoPressureAdvancedMoves)
+{
+    builder.setPressureAdvanceFactors({ 0, 0, 0, 1.0 });
+    Path firstPath = builder.makeExtrudedPath(0.1, 0, 0, 0.1, PathBuilder::SpeedType::CompleteSpeed);
+    Path secondPath = builder.makeExtrudedPath(0.1, 0, 0, 0.1, PathBuilder::SpeedType::CompleteSpeed);
+
+    EXPECT_TRUE(firstPath.willUsePressureAdvance());
+    EXPECT_TRUE(secondPath.willUsePressureAdvance());
+
+    addPath(std::move(firstPath));
+    addPath(std::move(secondPath));
+
+    run();
+
+    EXPECT_DOUBLE_EQ(paths[0].getEndSpeed(), 0.1);
+    EXPECT_DOUBLE_EQ(paths[1].getStartSpeed(), 0.1);
+}
+
+TEST_F(PathOptimizerTests, PressureAdvancedAndNotAdvanced)
+{
+    builder.setPressureAdvanceFactors({ 0, 0, 0, 1.0 });
+    Path firstPath = builder.makeExtrudedPath(0.1, 0, 0, 0.2);
+    Path secondPath = builder.makePath(0.1, 0, 0, 0.2);
+
+    EXPECT_TRUE(firstPath.willUsePressureAdvance());
+    EXPECT_FALSE(secondPath.willUsePressureAdvance());
+
+    addPath(std::move(firstPath));
+    addPath(std::move(secondPath));
+
+    run();
+
+    EXPECT_DOUBLE_EQ(paths[0].getEndSpeed(), 0.0); // we have to stop completely - no jerk for a pressure advanced extruder
+    EXPECT_DOUBLE_EQ(paths[1].getStartSpeed(), 0.01); // we can use all of the max jump to start again
+}
+
+TEST_F(PathOptimizerTests, NotAdvancedAndPressureAdvanced)
+{
+    builder.setPressureAdvanceFactors({ 0, 0, 0, 1.0 });
+    Path firstPath = builder.makePath(0.1, 0, 0, 0.2);
+    Path secondPath = builder.makeExtrudedPath(0.1, 0, 0, 0.2);
+
+    EXPECT_FALSE(firstPath.willUsePressureAdvance());
+    EXPECT_TRUE(secondPath.willUsePressureAdvance());
+
+    addPath(std::move(firstPath));
+    addPath(std::move(secondPath));
+
+    run();
+
+    EXPECT_DOUBLE_EQ(paths[0].getEndSpeed(), 0.01); // we can use all of the max jump to stop
+    EXPECT_DOUBLE_EQ(paths[1].getStartSpeed(), 0.0); // no jump when we restart
+}
+
+TEST_F(PathOptimizerTests, PressureAdvancedAndRetraction)
+{
+    builder.setPressureAdvanceFactors({ 0, 0, 0, 1.0 });
+    Path firstPath = builder.makeExtrudedPath(0.1, 0, 0, 0.2);
+    Path secondPath = builder.makePath({ 0, 0, 0, -0.03 }, 0.05);
+
+    EXPECT_TRUE(firstPath.willUsePressureAdvance());
+    EXPECT_FALSE(secondPath.willUsePressureAdvance());
+
+    auto [firstSpeed, secondSpeed] = calculateJunctionSpeed(firstPath, secondPath);
+
+    EXPECT_DOUBLE_EQ(firstSpeed, 0.0);
+    EXPECT_DOUBLE_EQ(secondSpeed, 0.01);
+
+    addPath(std::move(firstPath));
+    addPath(std::move(secondPath));
+
+    run();
+
+    EXPECT_DOUBLE_EQ(paths[0].getEndSpeed(), 0.0); // we have to stop completely - no jerk for a pressure advanced extruder
+    EXPECT_DOUBLE_EQ(paths[1].getStartSpeed(), 0.01); // we can use all of jump to start again
+}
+
+TEST_F(PathOptimizerTests, UnretractionAndPressureAdvance)
+{
+    builder.setPressureAdvanceFactors({ 0, 0, 0, 1.0 });
+    Path firstPath = builder.makePath({ 0, 0, 0, 0.03 }, 0.05);
+    Path secondPath = builder.makeExtrudedPath(0.1, 0, 0, 0.01, PathBuilder::SpeedType::CompleteSpeed);
+
+    EXPECT_FALSE(firstPath.willUsePressureAdvance());
+    EXPECT_TRUE(secondPath.willUsePressureAdvance());
+
+    auto [firstSpeed, secondSpeed] = calculateJunctionSpeed(firstPath, secondPath);
+
+    EXPECT_DOUBLE_EQ(firstSpeed, 0.01);
+    EXPECT_DOUBLE_EQ(secondSpeed, 0.0);
+
+    addPath(std::move(firstPath));
+    addPath(std::move(secondPath));
+
+    run();
+
+    EXPECT_DOUBLE_EQ(paths[0].getEndSpeed(), 0.01); // we can use all of the max jump to stop
+    EXPECT_DOUBLE_EQ(paths[1].getStartSpeed(), 0.0); // no jump when we restart
+}
+
+TEST_F(PathOptimizerTests, PressureAdvancedAndSlowingDown)
+{
+    builder.setPressureAdvanceFactors({ 0, 0, 0, 1.0 });
+    Path firstPath = builder.makeExtrudedPath(0.1, 0, 0, 0.1, PathBuilder::SpeedType::CompleteSpeed);
+    Path secondPath = builder.makeExtrudedPath(0.1, 0, 0, 0.2, PathBuilder::SpeedType::CompleteSpeed);
+
+    EXPECT_TRUE(firstPath.willUsePressureAdvance());
+    EXPECT_TRUE(secondPath.willUsePressureAdvance());
+
+    addPath(std::move(firstPath));
+    addPath(std::move(secondPath));
+
+    run();
+
+    EXPECT_DOUBLE_EQ(paths[0].getEndSpeed(), 0.1); // no jump
+    EXPECT_DOUBLE_EQ(paths[1].getStartSpeed(), 0.1);
+}
+
+TEST_F(PathOptimizerTests, PressureAdvancedAndSpeedingUp)
+{
+    builder.setPressureAdvanceFactors({ 0, 0, 0, 1.0 });
+    Path firstPath = builder.makeExtrudedPath(0.1, 0, 0, 0.2, PathBuilder::SpeedType::CompleteSpeed);
+    Path secondPath = builder.makeExtrudedPath(0.1, 0, 0, 0.1, PathBuilder::SpeedType::CompleteSpeed);
+
+    EXPECT_TRUE(firstPath.willUsePressureAdvance());
+    EXPECT_TRUE(secondPath.willUsePressureAdvance());
+
+    addPath(std::move(firstPath));
+    addPath(std::move(secondPath));
+
+    run();
+
+    EXPECT_DOUBLE_EQ(paths[0].getEndSpeed(), 0.1); // no jump
+    EXPECT_DOUBLE_EQ(paths[1].getStartSpeed(), 0.1);
+}

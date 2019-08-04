@@ -356,6 +356,11 @@ public:
         return flags & FLAG_USE_PRESSURE_ADVANCE;
     }
 
+    inline bool willAxisUsePressureAdvance(int axis) const
+    {
+        return willUsePressureAdvance() && machineMove[axis] != 0 && pressureAdvanceFactors[axis] != 0;
+    }
+
     inline bool isProbeMove() const
     {
         return flags & FLAG_PROBE;

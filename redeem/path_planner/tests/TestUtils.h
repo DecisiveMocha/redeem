@@ -1,7 +1,10 @@
 #pragma once
 
+#define _USE_MATH_DEFINES
 #include <future>
+#include <math.h>
 #include <thread>
+#undef _USE_MATH_DEFINES
 
 #include "Path.h"
 #include "vectorN.h"
@@ -14,6 +17,9 @@ struct PathBuilder
     VectorN maxSpeeds;
     VectorN maxAccelMPerSquareSecond;
     VectorN pressureAdvanceFactors;
+    double layerHeight = 0.0002;
+    double trackWidth = 0.0005;
+    double filamentDiameter = 0.00175;
 
     static PathBuilder CartesianBuilder()
     {
@@ -43,6 +49,11 @@ struct PathBuilder
     {
     }
 
+    void setPressureAdvanceFactors(const VectorN& factors)
+    {
+        pressureAdvanceFactors = factors;
+    }
+
     Path makePath(const VectorN& move, double speed)
     {
         Path result;
@@ -66,12 +77,49 @@ struct PathBuilder
             false,
             false);
 
+        currentPosition += move;
+
         return result;
     }
 
     Path makePath(double x, double y, double z, double speed)
     {
         return makePath(VectorN(x, y, z), speed);
+    }
+
+    enum class SpeedType
+    {
+        PrintHeadSpeed,
+        CompleteSpeed
+    };
+
+    Path makeExtrudedPath(double x, double y, double z, double speed, SpeedType speedType = SpeedType::PrintHeadSpeed)
+    {
+        const double filamentRadius = filamentDiameter / 2;
+        // volume we need to extrude to fill a 1mm by <trackWidth> by <layerheight> box
+        const double extruderVolume = trackWidth * layerHeight;
+        // distance we need to extrude to generate that volume
+        // cylinder volume is pi*r^2*h, so we want volume/(pi*r^2)
+        const double extruderRatio = extruderVolume / (M_PI * filamentRadius * filamentRadius);
+
+        const VectorN printHeadMove { x, y, z };
+        
+
+        const VectorN completeMove { x, y, z, vabs(printHeadMove) * extruderRatio };
+
+        const double scaledSpeed = [&]() {
+            if (speedType == SpeedType::CompleteSpeed)
+            {
+                return speed;
+            }
+            else
+            {
+                const double printHeadMoveTime = vabs(printHeadMove) / speed;
+                return vabs(completeMove) / printHeadMoveTime;
+			}
+        }();
+
+        return makePath(completeMove, scaledSpeed);
     }
 };
 
